@@ -3,8 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
-from clip import clip
+import sys
+import os
+
+# Add the project root directory to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, project_root)
+
+import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
+from dataloaders.MLRSNet import MLRSNetDataset
+from torchvision import transforms
 
 _tokenizer = _Tokenizer()
 __all__ = ['CustomMLRSNetModel']
@@ -69,6 +79,8 @@ class CustomMLRSNetModel(nn.Module):
     def forward(self, images):
         # images: [B, 3, 256, 256]
         image_features = self.image_encoder(images.type(self.dtype))  # [B, feat_dim]
+        if isinstance(image_features, tuple):
+            image_features = image_features[0]  # Take the first element if it's a tuple
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
         # Repeat prompt features for batch
@@ -106,7 +118,10 @@ def train_one_epoch(model, dataloader, optimizer, device):
     model.train()
     total_loss = 0
     criterion = nn.BCEWithLogitsLoss()
-    for images, labels in dataloader:
+    total_batches = len(dataloader)
+    
+    print(f"\nStarting epoch training...")
+    for batch_idx, (images, labels) in enumerate(dataloader):
         images, labels = images.to(device), labels.to(device)
         logits = model(images)
         loss = criterion(logits, labels)
@@ -114,21 +129,37 @@ def train_one_epoch(model, dataloader, optimizer, device):
         loss.backward()
         optimizer.step()
         total_loss += loss.item() * images.size(0)
-    return total_loss / len(dataloader.dataset)
+        
+        # Print progress every 10 batches
+        if (batch_idx + 1) % 10 == 0:
+            print(f"Batch [{batch_idx + 1}/{total_batches}] - Loss: {loss.item():.4f}")
+    
+    avg_loss = total_loss / len(dataloader.dataset)
+    print(f"Epoch completed - Average Loss: {avg_loss:.4f}")
+    return avg_loss
 
 def evaluate(model, dataloader, device):
     model.eval()
     all_logits, all_labels = [], []
+    total_batches = len(dataloader)
+    
+    print("\nStarting evaluation...")
     with torch.no_grad():
-        for images, labels in dataloader:
+        for batch_idx, (images, labels) in enumerate(dataloader):
             images = images.to(device)
             logits = model(images)
             all_logits.append(logits.cpu())
             all_labels.append(labels)
+            
+            # Print progress every 10 batches
+            if (batch_idx + 1) % 10 == 0:
+                print(f"Evaluation Batch [{batch_idx + 1}/{total_batches}]")
+    
     all_logits = torch.cat(all_logits)
     all_labels = torch.cat(all_labels)
     preds = (torch.sigmoid(all_logits) > 0.5).float()
     accuracy = (preds == all_labels).float().mean().item()
+    print(f"Evaluation completed - Accuracy: {accuracy:.4f}")
     return accuracy, all_logits, all_labels
 
 # --- Visualization ---
@@ -155,19 +186,35 @@ if __name__ == "__main__":
             BACKBONE = BACKBONE()
         class TRAINER:
             LOGIT_SCALE_INIT = 1.0
+        class INPUT:
+            SIZE = [224, 224]  # Default CLIP input size
         USE_CUDA = torch.cuda.is_available()
     cfg = DummyCfg()
-    classnames = [f"class_{i}" for i in range(5)]
+
+    # Paths to dataset components
+    images_dir = r"C:\Users\DELL\Desktop\DualCoOp-main\MLRSNet\MLRSNet-master\Images"
+    labels_dir = r"C:\Users\DELL\Desktop\DualCoOp-main\MLRSNet\MLRSNet-master\Labels"
+    categories_file = r"C:\Users\DELL\Desktop\DualCoOp-main\MLRSNet\MLRSNet-master\Categories_names.xlsx"
+
+    # Define transformations
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    # Create dataset and dataloader
+    dataset = MLRSNetDataset(images_dir, labels_dir, categories_file, split="train", transform=transform)
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+
+    # Get classnames from the dataset
+    classnames = dataset.categories
 
     # Load CLIP and model
     clip_model = load_clip_to_cpu(cfg)
     model = CustomMLRSNetModel(cfg, classnames, clip_model)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-
-    # DataLoader
-    dataset = DummyMLRSNetDataset(num_samples=100, num_classes=len(classnames))
-    dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
 
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
