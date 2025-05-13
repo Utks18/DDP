@@ -1,0 +1,36 @@
+// MLRSNet Model Architecture
+digraph {
+	rankdir=TB
+	node [fillcolor=lightblue shape=box style="rounded,filled"]
+	input [label="Input Images
+[B, 3, 256, 256]"]
+	clip_visual [label="CLIP Visual Encoder
+(ResNet-50)"]
+	clip_text [label="CLIP Text Encoder
+(Transformer)"]
+	pool [label="Average Pooling
+[B, D]"]
+	norm [label="Feature Normalization"]
+	prompts [label="Text Prompts
+(46 classes)"]
+	tokenize [label=Tokenization]
+	embed [label="Text Embedding"]
+	sim_pos [label="Positive Similarity
+[B, C]"]
+	sim_neg [label="Negative Similarity
+[B, C]"]
+	logits [label="Final Logits
+[B, C]"]
+	input -> clip_visual
+	clip_visual -> pool
+	pool -> norm
+	prompts -> tokenize
+	tokenize -> embed
+	embed -> clip_text
+	norm -> sim_pos
+	norm -> sim_neg
+	clip_text -> sim_pos [label="Positive Features"]
+	clip_text -> sim_neg [label="Negative Features"]
+	sim_pos -> logits
+	sim_neg -> logits
+}
