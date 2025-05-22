@@ -25,7 +25,7 @@ def arg_parser():
     # logging
     parser.add_argument('--output_dir', default='', type=str, help='log path')
 
-    parser.add_argument('--print_freq', type=int, default=100,
+    parser.add_argument('--print_freq', type=int, default=10,
                         help='frequency to print the log during the training')
     parser.add_argument('--val_freq_in_epoch', type=int, default=-1,
                         help='frequency to validate the model during the training')

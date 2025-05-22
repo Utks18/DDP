@@ -1,0 +1,6 @@
+DATASET:
+  NAME: "MLRSNet"
+  ROOT: "/home/sarthak/DDP/MLRSNet"
+  VAL_SPLIT: "val"
+  TEST_SPLIT: "val"
+  TRAIN_SPLIT: "train"

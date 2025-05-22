@@ -1,4 +1,4 @@
-from . import (dualcoop)
+from . import (dualcoop, mlrsmodel)
 
 def build_model(cfg, args, classnames):
     """
@@ -9,7 +9,8 @@ def build_model(cfg, args, classnames):
         network model
         architecture name
     """
-    model = dualcoop(cfg, classnames)
+    # model = dualcoop(cfg, classnames)
+    model = mlrsmodel(cfg, classnames)
     network_name = model.network_name if hasattr(model, 'network_name') else cfg.MODEL.BACKBONE.NAME
     arch_name = "{dataset}-{arch_name}".format(
         dataset=cfg.DATASET.NAME, arch_name=network_name)
